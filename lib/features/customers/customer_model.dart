@@ -5,6 +5,7 @@ class CustomerModel {
   final String cpf;
   final String description;
   final String status;
+  final int creditInCents;
   final String createdAt;
   final String updatedAt;
 
@@ -15,10 +16,12 @@ class CustomerModel {
     required this.cpf,
     required this.description,
     required this.status,
+    this.creditInCents = 0,
     required this.createdAt,
     required this.updatedAt,
   });
 
+  double get credit => creditInCents / 100;
   bool get isActive => status == 'active';
 
   // CPF formatado: 000.000.000-00
@@ -48,6 +51,7 @@ class CustomerModel {
       cpf: json['cpf'] as String,
       description: json['description'] as String? ?? '',
       status: json['status'] as String,
+      creditInCents: json['creditInCents'] as int? ?? 0,
       createdAt: json['createdAt'] as String,
       updatedAt: json['updatedAt'] as String,
     );

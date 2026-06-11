@@ -433,20 +433,19 @@ class _SalesChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Group sales by UTC date string to match backend timestamp storage
     final dataMap = <String, double>{};
     for (final sale in sales) {
-      final dt = DateTime.tryParse(sale.createdAt)?.toUtc();
+      final dt = DateTime.tryParse(sale.createdAt)?.toLocal();
       if (dt == null) continue;
-      final dateStr = dt.toIso8601String().substring(0, 10);
+      final dateStr = DateFormat('yyyy-MM-dd').format(dt);
       dataMap[dateStr] = (dataMap[dateStr] ?? 0) + sale.total;
     }
 
-    final todayUtc = DateTime.now().toUtc();
-    final days = List.generate(7, (i) => todayUtc.subtract(Duration(days: 6 - i)));
+    final today = DateTime.now();
+    final days = List.generate(7, (i) => today.subtract(Duration(days: 6 - i)));
 
     final bars = days.asMap().entries.map((e) {
-      final dateStr = e.value.toIso8601String().substring(0, 10);
+      final dateStr = DateFormat('yyyy-MM-dd').format(e.value);
       final value = dataMap[dateStr] ?? 0.0;
       final isToday = e.key == 6;
       return BarChartGroupData(

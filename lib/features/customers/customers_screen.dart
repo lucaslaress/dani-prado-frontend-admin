@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/http/api_client.dart';
@@ -206,6 +207,33 @@ class _CustomerCard extends StatelessWidget {
               customer.formattedPhone,
               style: const TextStyle(fontSize: 13),
             ),
+            if (customer.creditInCents > 0) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withAlpha(20),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.success),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.account_balance_wallet_outlined,
+                        size: 13, color: AppColors.success),
+                    const SizedBox(width: 4),
+                    Text(
+                      NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$')
+                          .format(customer.credit),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.success,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (customer.description.isNotEmpty) ...[
               const SizedBox(width: 8),
               OutlinedButton(

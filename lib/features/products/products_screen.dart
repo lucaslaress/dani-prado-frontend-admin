@@ -85,11 +85,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
     });
     try {
       final products = await _service.listProducts();
+      if (!mounted) return;
       setState(() => _products = products);
     } catch (e) {
+      if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
