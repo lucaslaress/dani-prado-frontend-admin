@@ -28,12 +28,14 @@ class SalesService {
   Future<List<SaleModel>> listSales({
     String? sellerId,
     String? customerId,
+    String? customerName,
     DateTime? startDate,
     DateTime? endDate,
   }) async {
     final params = <String, String>{};
     if (sellerId != null) params['sellerId'] = sellerId;
     if (customerId != null) params['customerId'] = customerId;
+    if (customerName != null && customerName.isNotEmpty) params['customerName'] = customerName;
     if (startDate != null) params['startDate'] = startDate.toIso8601String();
     if (endDate != null) params['endDate'] = endDate.toIso8601String();
 

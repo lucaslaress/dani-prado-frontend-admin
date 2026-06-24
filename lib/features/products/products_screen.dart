@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -21,32 +23,52 @@ class ProductsScreen extends StatefulWidget {
 class _ProductsScreenState extends State<ProductsScreen> {
   late final ProductsService _service;
   List<ProductModel> _products = [];
+  List<String> _brands = [];
+  String? _selectedBrand;
   bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
   String? _error;
+  String? _cursor;
   final _searchController = TextEditingController();
-  String _searchQuery = '';
+  final _scrollController = ScrollController();
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
     _service = ProductsService(context.read<ApiClient>());
+    _scrollController.addListener(_onScroll);
     _loadProducts();
-    _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
-    });
+    _loadBrands();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
-  List<ProductModel> get _filtered {
-    if (_searchQuery.isEmpty) return _products;
-    return _products
-        .where((p) => p.name.toLowerCase().contains(_searchQuery))
-        .toList();
+  Future<void> _loadBrands() async {
+    try {
+      final brands = await _service.listBrands();
+      if (mounted) setState(() => _brands = brands);
+    } catch (_) {}
+  }
+
+  void _onScroll() {
+    if (_isLoadingMore || !_hasMore) return;
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMore();
+    }
+  }
+
+  void _onSearchChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), _loadProducts);
   }
 
   Future<void> _deactivateProduct(ProductModel product) async {
@@ -82,16 +104,44 @@ class _ProductsScreenState extends State<ProductsScreen> {
     setState(() {
       _isLoading = true;
       _error = null;
+      _products = [];
+      _cursor = null;
+      _hasMore = true;
     });
     try {
-      final products = await _service.listProducts();
+      final search = _searchController.text.trim();
+      final page = await _service.listProducts(
+        search: search.isEmpty ? null : search,
+        brand: _selectedBrand,
+      );
       if (!mounted) return;
-      setState(() => _products = products);
+      setState(() {
+        _products = page.products;
+        _cursor = page.nextCursor;
+        _hasMore = page.nextCursor != null;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_cursor == null) return;
+    setState(() => _isLoadingMore = true);
+    try {
+      final page = await _service.listProducts(cursor: _cursor);
+      if (!mounted) return;
+      setState(() {
+        _products.addAll(page.products);
+        _cursor = page.nextCursor;
+        _hasMore = page.nextCursor != null;
+      });
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _isLoadingMore = false);
     }
   }
 
@@ -124,13 +174,49 @@ class _ProductsScreenState extends State<ProductsScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              decoration: const InputDecoration(
-                hintText: 'Pesquisar por nome...',
-                prefixIcon: Icon(Icons.search),
-              ),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: const InputDecoration(
+                      hintText: 'Pesquisar por nome...',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: _onSearchChanged,
+                  ),
+                ),
+                if (_brands.isNotEmpty) ...[
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 200,
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Marca',
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedBrand,
+                          isDense: true,
+                          items: [
+                            const DropdownMenuItem(
+                                value: null, child: Text('Todas')),
+                            ..._brands.map((b) =>
+                                DropdownMenuItem(value: b, child: Text(b))),
+                          ],
+                          onChanged: (value) {
+                            setState(() => _selectedBrand = value);
+                            _loadProducts();
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           const Divider(height: 1),
@@ -166,17 +252,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
     if (_products.isEmpty) {
       return const Center(
         child: Text(
-          'Nenhum produto cadastrado.',
-          style: TextStyle(color: AppColors.grey700),
-        ),
-      );
-    }
-
-    final filtered = _filtered;
-
-    if (filtered.isEmpty) {
-      return const Center(
-        child: Text(
           'Nenhum produto encontrado.',
           style: TextStyle(color: AppColors.grey700),
         ),
@@ -184,20 +259,31 @@ class _ProductsScreenState extends State<ProductsScreen> {
     }
 
     return ListView.separated(
+      controller: _scrollController,
       padding: const EdgeInsets.all(24),
-      itemCount: filtered.length,
+      itemCount: _products.length + (_isLoadingMore ? 1 : 0),
       separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) => _ProductCard(
-        product: filtered[index],
-        onEdit: () async {
-          final updated =
-              await showProductForm(context, product: filtered[index]);
-          if (updated != null) _loadProducts();
-        },
-        onDeactivate: filtered[index].isActive
-            ? () => _deactivateProduct(filtered[index])
-            : null,
-      ),
+      itemBuilder: (context, index) {
+        if (index == _products.length) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        return _ProductCard(
+          product: _products[index],
+          onEdit: () async {
+            final updated =
+                await showProductForm(context, product: _products[index]);
+            if (updated != null) _loadProducts();
+          },
+          onDeactivate: _products[index].isActive
+              ? () => _deactivateProduct(_products[index])
+              : null,
+        );
+      },
     );
   }
 }
@@ -262,6 +348,19 @@ class _ProductCard extends StatelessWidget {
                     _currencyFormat.format(product.basePrice),
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
+                if (product.costPrice != null) ...[
+                  Text(
+                    'Custo: ${_currencyFormat.format(product.costPrice)}',
+                    style: const TextStyle(fontSize: 11, color: AppColors.grey500),
+                  ),
+                  Text(
+                    'Margem: ${product.profitMargin!.toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: product.profitMargin! >= 0 ? AppColors.success : AppColors.error,
+                    ),
+                  ),
+                ],
               ],
             ),
             IconButton(
@@ -278,7 +377,9 @@ class _ProductCard extends StatelessWidget {
           ],
         ),
         subtitle: Text(
-          product.category,
+          product.brand != null
+              ? '${product.category} • ${product.brand}'
+              : product.category,
           style: const TextStyle(color: AppColors.grey700, fontSize: 13),
         ),
         children: [

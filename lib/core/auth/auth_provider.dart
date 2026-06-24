@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
 
 const _tokenKey = 'auth_token';
+const _refreshTokenKey = 'auth_refresh_token';
 
 // Modelo que representa o usuário logado
 class UserModel {
@@ -45,6 +46,7 @@ class UserModel {
 class AuthProvider extends ChangeNotifier {
   UserModel? _user;
   String? _token;
+  String? _refreshToken;
   bool _isLoading = false;
   bool _isInitialized = false;
 
@@ -62,6 +64,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _tryAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
     final savedToken = prefs.getString(_tokenKey);
+    final savedRefreshToken = prefs.getString(_refreshTokenKey);
 
     if (savedToken == null) {
       _isInitialized = true;
@@ -69,17 +72,61 @@ class AuthProvider extends ChangeNotifier {
       return;
     }
 
+    _refreshToken = savedRefreshToken;
+
     final userData = await _fetchCurrentUser(savedToken, silent: true);
 
     if (userData != null) {
       _token = savedToken;
       _user = userData;
+    } else if (savedRefreshToken != null) {
+      // Token expirado — tenta renovar silenciosamente
+      final refreshed = await refreshSession(silent: true);
+      if (!refreshed) {
+        await prefs.remove(_tokenKey);
+        await prefs.remove(_refreshTokenKey);
+        _refreshToken = null;
+      }
     } else {
       await prefs.remove(_tokenKey);
     }
 
     _isInitialized = true;
     notifyListeners();
+  }
+
+  // Renova o token usando o refresh token salvo
+  Future<bool> refreshSession({bool silent = false}) async {
+    if (_refreshToken == null) return false;
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConstants.backendUrl}/auth/refresh'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refreshToken': _refreshToken}),
+      );
+      if (response.statusCode != 200) return false;
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final newToken = data['token'] as String;
+      final newRefreshToken = data['refreshToken'] as String;
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_tokenKey, newToken);
+      await prefs.setString(_refreshTokenKey, newRefreshToken);
+
+      _token = newToken;
+      _refreshToken = newRefreshToken;
+
+      if (!silent) {
+        final userData = await _fetchCurrentUser(newToken, silent: true);
+        if (userData != null) _user = userData;
+      }
+
+      notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // Faz login chamando o backend
@@ -101,14 +148,17 @@ class AuthProvider extends ChangeNotifier {
 
       final loginData = jsonDecode(response.body) as Map<String, dynamic>;
       final receivedToken = loginData['token'] as String;
+      final receivedRefreshToken = loginData['refreshToken'] as String;
 
       final userData = await _fetchCurrentUser(receivedToken);
       if (userData == null) throw 'Não foi possível carregar os dados do usuário';
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_tokenKey, receivedToken);
+      await prefs.setString(_refreshTokenKey, receivedRefreshToken);
 
       _token = receivedToken;
+      _refreshToken = receivedRefreshToken;
       _user = userData;
     } finally {
       _isLoading = false;
@@ -149,8 +199,10 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
+    await prefs.remove(_refreshTokenKey);
 
     _token = null;
+    _refreshToken = null;
     _user = null;
     notifyListeners();
   }

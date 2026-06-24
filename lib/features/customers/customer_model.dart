@@ -4,6 +4,7 @@ class CustomerModel {
   final String phone;
   final String cpf;
   final String description;
+  final String? birthday;
   final String status;
   final int creditInCents;
   final String createdAt;
@@ -15,6 +16,7 @@ class CustomerModel {
     required this.phone,
     required this.cpf,
     required this.description,
+    this.birthday,
     required this.status,
     this.creditInCents = 0,
     required this.createdAt,
@@ -50,6 +52,7 @@ class CustomerModel {
       phone: json['phone'] as String,
       cpf: json['cpf'] as String,
       description: json['description'] as String? ?? '',
+      birthday: json['birthday'] as String?,
       status: json['status'] as String,
       creditInCents: json['creditInCents'] as int? ?? 0,
       createdAt: json['createdAt'] as String,

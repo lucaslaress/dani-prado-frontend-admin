@@ -783,7 +783,7 @@ class _CustomerPickerDialogState extends State<_CustomerPickerDialog> {
 
   Future<void> _load() async {
     try {
-      final results = await widget.service.listCustomers();
+      final results = await widget.service.listAllCustomers();
       if (mounted) setState(() => _allCustomers = results);
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -856,8 +856,9 @@ class _HistoryTabState extends State<_HistoryTab> {
   bool _isLoading = false;
   String? _error;
 
-  DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
+  DateTime _startDate = DateTime.now().subtract(const Duration(days: 10));
   DateTime _endDate = DateTime.now();
+  final _customerNameController = TextEditingController();
 
   static final _dateFormat = DateFormat('dd/MM/yyyy', 'pt_BR');
   static final _dateTimeFormat = DateFormat('dd/MM/yyyy HH:mm', 'pt_BR');
@@ -870,11 +871,23 @@ class _HistoryTabState extends State<_HistoryTab> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _customerNameController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() { _isLoading = true; _error = null; });
     try {
       final end = DateTime(_endDate.year, _endDate.month, _endDate.day, 23, 59, 59);
-      final sales = await _service.listSales(startDate: _startDate, endDate: end);
+      final sales = await _service.listSales(
+        startDate: _startDate,
+        endDate: end,
+        customerName: _customerNameController.text.trim().isEmpty
+            ? null
+            : _customerNameController.text.trim(),
+      );
       setState(() => _sales = sales);
     } catch (e) {
       setState(() => _error = e.toString());
@@ -926,6 +939,20 @@ class _HistoryTabState extends State<_HistoryTab> {
           const Text('Ate:', style: TextStyle(color: AppColors.grey700, fontSize: 13)),
           const SizedBox(width: 8),
           _DateChip(label: _dateFormat.format(_endDate), onTap: () => _pickDate(isEnd: true)),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: 200,
+            height: 36,
+            child: TextField(
+              controller: _customerNameController,
+              decoration: const InputDecoration(
+                hintText: 'Nome do cliente',
+                prefixIcon: Icon(Icons.person_search, size: 18),
+                contentPadding: EdgeInsets.symmetric(vertical: 8),
+              ),
+              onSubmitted: (_) => _load(),
+            ),
+          ),
           const SizedBox(width: 16),
           FilledButton.icon(
             onPressed: _isLoading ? null : _load,

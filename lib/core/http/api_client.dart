@@ -29,10 +29,12 @@ class NotFoundException extends ApiException {
 class ApiClient {
   final String baseUrl;
   final String? Function() getToken;
+  final Future<bool> Function()? onUnauthorized;
 
   const ApiClient({
     required this.baseUrl,
     required this.getToken,
+    this.onUnauthorized,
   });
 
   Map<String, String> get _headers {
@@ -43,38 +45,32 @@ class ApiClient {
     };
   }
 
-  Future<dynamic> get(String path) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl$path'),
-      headers: _headers,
-    );
-    return _handleResponse(response);
-  }
+  Future<dynamic> get(String path) =>
+      _request(() => http.get(Uri.parse('$baseUrl$path'), headers: _headers));
 
-  Future<dynamic> post(String path, Map<String, dynamic> body) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl$path'),
-      headers: _headers,
-      body: jsonEncode(body),
-    );
-    return _handleResponse(response);
-  }
+  Future<dynamic> post(String path, Map<String, dynamic> body) => _request(() =>
+      http.post(Uri.parse('$baseUrl$path'),
+          headers: _headers, body: jsonEncode(body)));
 
-  Future<dynamic> patch(String path, Map<String, dynamic> body) async {
-    final response = await http.patch(
-      Uri.parse('$baseUrl$path'),
-      headers: _headers,
-      body: jsonEncode(body),
-    );
-    return _handleResponse(response);
-  }
+  Future<dynamic> patch(String path, Map<String, dynamic> body) => _request(() =>
+      http.patch(Uri.parse('$baseUrl$path'),
+          headers: _headers, body: jsonEncode(body)));
 
-  Future<void> delete(String path) async {
-    final response = await http.delete(
-      Uri.parse('$baseUrl$path'),
-      headers: _headers,
-    );
-    _handleResponse(response);
+  Future<void> delete(String path) =>
+      _request(() => http.delete(Uri.parse('$baseUrl$path'), headers: _headers));
+
+  Future<dynamic> _request(Future<http.Response> Function() makeRequest) async {
+    final response = await makeRequest();
+
+    if (response.statusCode == 401 && onUnauthorized != null) {
+      final refreshed = await onUnauthorized!();
+      if (refreshed) {
+        final retryResponse = await makeRequest();
+        return _handleResponse(retryResponse);
+      }
+    }
+
+    return _handleResponse(response);
   }
 
   dynamic _handleResponse(http.Response response) {
