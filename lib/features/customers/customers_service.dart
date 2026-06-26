@@ -4,8 +4,9 @@ import 'customer_model.dart';
 class CustomersPage {
   final List<CustomerModel> customers;
   final String? nextCursor;
+  final int total;
 
-  const CustomersPage({required this.customers, this.nextCursor});
+  const CustomersPage({required this.customers, this.nextCursor, required this.total});
 
   factory CustomersPage.fromJson(Map<String, dynamic> json) {
     return CustomersPage(
@@ -13,6 +14,7 @@ class CustomersPage {
           .map((e) => CustomerModel.fromJson(e as Map<String, dynamic>))
           .toList(),
       nextCursor: json['nextCursor'] as String?,
+      total: json['total'] as int? ?? 0,
     );
   }
 }

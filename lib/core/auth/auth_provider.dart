@@ -142,8 +142,14 @@ class AuthProvider extends ChangeNotifier {
       );
 
       if (response.statusCode != 200) {
-        final body = jsonDecode(response.body) as Map<String, dynamic>;
-        throw body['message'] as String? ?? 'Erro ao fazer login';
+        String message = 'Erro ao fazer login';
+        try {
+          final body = jsonDecode(response.body) as Map<String, dynamic>;
+          message = body['message'] as String? ?? message;
+        } catch (_) {
+          if (response.body.isNotEmpty) message = response.body;
+        }
+        throw message;
       }
 
       final loginData = jsonDecode(response.body) as Map<String, dynamic>;

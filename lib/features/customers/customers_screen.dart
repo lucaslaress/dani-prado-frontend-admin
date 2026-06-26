@@ -23,6 +23,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
   final _scrollController = ScrollController();
 
   List<CustomerModel> _customers = [];
+  int _total = 0;
   bool _isLoading = true;
   bool _isLoadingMore = false;
   bool _hasMore = true;
@@ -78,6 +79,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
         _customers = page.customers;
         _cursor = page.nextCursor;
         _hasMore = page.nextCursor != null;
+        _total = page.total;
       });
     } catch (e) {
       setState(() => _error = e.toString());
@@ -132,6 +134,17 @@ class _CustomersScreenState extends State<CustomersScreen> {
         children: [
           _buildSearchBar(),
           const Divider(height: 1),
+          if (!_isLoading && _error == null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '$_total clientes cadastrados',
+                  style: const TextStyle(fontSize: 13, color: AppColors.grey700),
+                ),
+              ),
+            ),
           Expanded(child: _buildBody()),
         ],
       ),
