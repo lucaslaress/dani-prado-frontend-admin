@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
@@ -28,6 +29,7 @@ class DaniPradoApp extends StatelessWidget {
           update: (_, auth, _) => ApiClient(
             baseUrl: AppConstants.backendUrl,
             getToken: () => auth.token,
+            onUnauthorized: () => auth.refreshSession(),
           ),
         ),
       ],
@@ -39,6 +41,14 @@ class DaniPradoApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             theme: AppTheme.theme,
             routerConfig: router,
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: const [
+              Locale('pt', 'BR'),
+            ],
           );
         },
       ),

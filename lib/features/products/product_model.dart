@@ -32,7 +32,9 @@ class ProductModel {
   final String name;
   final String description;
   final String category;
+  final String? brand;
   final int basePriceInCents;
+  final int? costPriceInCents;
   final int? promotionalPriceInCents;
   final List<String> images;
   final String status;
@@ -45,7 +47,9 @@ class ProductModel {
     required this.name,
     required this.description,
     required this.category,
+    this.brand,
     required this.basePriceInCents,
+    required this.costPriceInCents,
     required this.promotionalPriceInCents,
     required this.images,
     required this.status,
@@ -60,6 +64,14 @@ class ProductModel {
 
   // Preço em reais (o backend armazena em centavos)
   double get basePrice => basePriceInCents / 100;
+  double? get costPrice =>
+      costPriceInCents != null ? costPriceInCents! / 100 : null;
+  double? get profitMargin {
+    if (costPriceInCents == null) return null;
+    final selling = effectivePrice;
+    if (selling <= 0) return null;
+    return (selling - costPriceInCents! / 100) / selling * 100;
+  }
   double? get promotionalPrice =>
       promotionalPriceInCents != null ? promotionalPriceInCents! / 100 : null;
 
@@ -77,7 +89,9 @@ class ProductModel {
       name: json['name'] as String,
       description: json['description'] as String,
       category: json['category'] as String,
+      brand: json['brand'] as String?,
       basePriceInCents: json['basePriceInCents'] as int,
+      costPriceInCents: json['costPriceInCents'] as int?,
       promotionalPriceInCents: json['promotionalPriceInCents'] as int?,
       images: List<String>.from(json['images'] as List? ?? []),
       status: json['status'] as String,

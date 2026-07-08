@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/http/api_client.dart';
@@ -17,48 +20,87 @@ class CustomersScreen extends StatefulWidget {
 class _CustomersScreenState extends State<CustomersScreen> {
   late final CustomersService _service;
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
 
   List<CustomerModel> _customers = [];
+  int _total = 0;
   bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
   String? _error;
-
-  List<CustomerModel> get _filtered {
-    final q = _searchController.text.trim().toLowerCase();
-    if (q.isEmpty) return _customers;
-    final digits = q.replaceAll(RegExp(r'\D'), '');
-    return _customers.where((c) {
-      if (c.name.toLowerCase().contains(q)) return true;
-      if (digits.isNotEmpty && c.cpf.contains(digits)) return true;
-      if (digits.isNotEmpty && c.phone.contains(digits)) return true;
-      return false;
-    }).toList();
-  }
+  String? _cursor;
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
     _service = CustomersService(context.read<ApiClient>());
+    _scrollController.addListener(_onScroll);
     _loadCustomers();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
+    _debounce?.cancel();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_isLoadingMore || !_hasMore) return;
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMore();
+    }
+  }
+
+  void _onSearchChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      _loadCustomers();
+    });
   }
 
   Future<void> _loadCustomers() async {
     setState(() {
       _isLoading = true;
       _error = null;
+      _customers = [];
+      _cursor = null;
+      _hasMore = true;
     });
     try {
-      final customers = await _service.listCustomers();
-      setState(() => _customers = customers);
+      final search = _searchController.text.trim();
+      final page = await _service.listCustomers(
+        search: search.isEmpty ? null : search,
+      );
+      setState(() {
+        _customers = page.customers;
+        _cursor = page.nextCursor;
+        _hasMore = page.nextCursor != null;
+        _total = page.total;
+      });
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_cursor == null) return;
+    setState(() => _isLoadingMore = true);
+    try {
+      final page = await _service.listCustomers(cursor: _cursor);
+      setState(() {
+        _customers.addAll(page.customers);
+        _cursor = page.nextCursor;
+        _hasMore = page.nextCursor != null;
+      });
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _isLoadingMore = false);
     }
   }
 
@@ -92,6 +134,17 @@ class _CustomersScreenState extends State<CustomersScreen> {
         children: [
           _buildSearchBar(),
           const Divider(height: 1),
+          if (!_isLoading && _error == null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '$_total clientes cadastrados',
+                  style: const TextStyle(fontSize: 13, color: AppColors.grey700),
+                ),
+              ),
+            ),
           Expanded(child: _buildBody()),
         ],
       ),
@@ -107,7 +160,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
           hintText: 'Buscar por nome, CPF ou telefone...',
           prefixIcon: Icon(Icons.search),
         ),
-        onChanged: (_) => setState(() {}),
+        onChanged: _onSearchChanged,
       ),
     );
   }
@@ -135,9 +188,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
       );
     }
 
-    final list = _filtered;
-
-    if (list.isEmpty) {
+    if (_customers.isEmpty) {
       return const Center(
         child: Text(
           'Nenhum cliente encontrado.',
@@ -147,17 +198,28 @@ class _CustomersScreenState extends State<CustomersScreen> {
     }
 
     return ListView.separated(
+      controller: _scrollController,
       padding: const EdgeInsets.all(24),
-      itemCount: list.length,
+      itemCount: _customers.length + (_isLoadingMore ? 1 : 0),
       separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) => _CustomerCard(
-        customer: list[index],
-        onEdit: () async {
-          final updated =
-              await showCustomerForm(context, customer: list[index]);
-          if (updated != null) _loadCustomers();
-        },
-      ),
+      itemBuilder: (context, index) {
+        if (index == _customers.length) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        return _CustomerCard(
+          customer: _customers[index],
+          onEdit: () async {
+            final updated =
+                await showCustomerForm(context, customer: _customers[index]);
+            if (updated != null) _loadCustomers();
+          },
+        );
+      },
     );
   }
 }
@@ -198,6 +260,17 @@ class _CustomerCard extends StatelessWidget {
                     customer.formattedCpf,
                     style: const TextStyle(color: AppColors.grey700, fontSize: 13),
                   ),
+                  if (customer.birthday != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      () {
+                        final d = DateTime.tryParse(customer.birthday!);
+                        if (d == null) return customer.birthday!;
+                        return DateFormat('dd/MM/yyyy').format(d);
+                      }(),
+                      style: const TextStyle(color: AppColors.grey700, fontSize: 12),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -206,6 +279,33 @@ class _CustomerCard extends StatelessWidget {
               customer.formattedPhone,
               style: const TextStyle(fontSize: 13),
             ),
+            if (customer.creditInCents > 0) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withAlpha(20),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.success),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.account_balance_wallet_outlined,
+                        size: 13, color: AppColors.success),
+                    const SizedBox(width: 4),
+                    Text(
+                      NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$')
+                          .format(customer.credit),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.success,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (customer.description.isNotEmpty) ...[
               const SizedBox(width: 8),
               OutlinedButton(

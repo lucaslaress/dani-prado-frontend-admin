@@ -110,6 +110,7 @@ class SaleModel {
   final String? walkInCustomerName;
   final int subtotalInCents;
   final int manualDiscountInCents;
+  final int appliedCreditInCents;
   final int totalInCents;
   final String status;
   final String createdAt;
@@ -123,6 +124,7 @@ class SaleModel {
     required this.walkInCustomerName,
     required this.subtotalInCents,
     this.manualDiscountInCents = 0,
+    this.appliedCreditInCents = 0,
     required this.totalInCents,
     required this.status,
     required this.createdAt,
@@ -159,6 +161,7 @@ class SaleModel {
       walkInCustomerName: walkIn?['name'] as String?,
       subtotalInCents: json['subtotalInCents'] as int,
       manualDiscountInCents: json['manualDiscountInCents'] as int? ?? 0,
+      appliedCreditInCents: json['appliedCreditInCents'] as int? ?? 0,
       totalInCents: json['totalInCents'] as int,
       status: json['status'] as String,
       createdAt: json['createdAt'] as String,

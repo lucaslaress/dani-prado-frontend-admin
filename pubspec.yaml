@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # HTTP
   http: ^1.2.2
@@ -29,6 +31,9 @@ dependencies:
   # Gráficos
   fl_chart: ^0.70.0
 
+  # Versão instalada do app (para checagem de atualização)
+  package_info_plus: ^8.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -39,3 +44,5 @@ flutter:
 
   assets:
     - assets/images/logo.png
+    - assets/images/app_icon.png
+

@@ -8,6 +8,8 @@ import '../../core/auth/auth_provider.dart';
 import '../../core/http/api_client.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../customers/customer_model.dart';
+import '../customers/customers_service.dart';
 import '../reports/reports_service.dart';
 import '../sales/sale_model.dart';
 import '../sales/sales_service.dart';
@@ -25,10 +27,12 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   late final ReportsService _service;
   late final SalesService _salesService;
+  late final CustomersService _customersService;
 
   Map<String, dynamic>? _summary;
   List<dynamic> _lowStock = [];
   List<SaleModel> _recentSales = [];
+  List<CustomerModel> _birthdaysToday = [];
   bool _isLoading = true;
   String? _error;
 
@@ -38,6 +42,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final api = context.read<ApiClient>();
     _service = ReportsService(api);
     _salesService = SalesService(api);
+    _customersService = CustomersService(api);
     _load();
   }
 
@@ -56,12 +61,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _service.getSalesSummary(startOfMonth, endOfMonth),
         _service.getLowStock(),
         _salesService.listSales(),
+        _customersService.getBirthdaysToday(),
       ]);
       if (!mounted) return;
       setState(() {
         _summary = results[0] as Map<String, dynamic>;
         _lowStock = results[1] as List;
         _recentSales = results[2] as List<SaleModel>;
+        _birthdaysToday = results[3] as List<CustomerModel>;
       });
     } catch (e) {
       if (!mounted) return;
@@ -157,6 +164,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: 12),
                       _QuickActions(isAdmin: user?.isAdmin ?? false),
 
+                      // Aniversariantes do dia
+                      if (_birthdaysToday.isNotEmpty) ...[
+                        const SizedBox(height: 32),
+                        Row(
+                          children: [
+                            const Icon(Icons.cake_outlined,
+                                color: AppColors.black, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Aniversariantes de hoje (${_birthdaysToday.length})',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _BirthdaysList(customers: _birthdaysToday),
+                      ],
+
                       // Alerta de estoque baixo
                       if (_lowStock.isNotEmpty) ...[
                         const SizedBox(height: 32),
@@ -193,12 +221,11 @@ class _TodaySummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final totalSales = summary['totalSales'] as int? ?? 0;
-    final revenue = (summary['totalRevenueInCents'] as int? ?? 0) / 100;
-    final discount = (summary['totalDiscountInCents'] as int? ?? 0) / 100;
     final net = (summary['netRevenueInCents'] as int? ?? 0) / 100;
+    final margin = summary['profitMarginPercent'] as double?;
 
     return GridView.count(
-      crossAxisCount: 4,
+      crossAxisCount: 3,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 12,
@@ -211,20 +238,15 @@ class _TodaySummary extends StatelessWidget {
           value: '$totalSales',
         ),
         _SummaryCard(
-          icon: Icons.attach_money,
-          label: 'Receita bruta',
-          value: _currency.format(revenue),
-        ),
-        _SummaryCard(
-          icon: Icons.discount_outlined,
-          label: 'Descontos',
-          value: _currency.format(discount),
-        ),
-        _SummaryCard(
           icon: Icons.trending_up,
           label: 'Receita líquida',
           value: _currency.format(net),
           highlight: true,
+        ),
+        _SummaryCard(
+          icon: Icons.percent,
+          label: 'Margem de lucro',
+          value: margin != null ? '${margin.toStringAsFixed(1)}%' : '—',
         ),
       ],
     );
@@ -271,7 +293,7 @@ class _SummaryCard extends StatelessWidget {
             Text(
               value,
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 32,
                 fontWeight: FontWeight.bold,
                 color: highlight ? AppColors.white : AppColors.black,
               ),
@@ -420,6 +442,28 @@ class _LowStockAlert extends StatelessWidget {
   }
 }
 
+// ── Aniversariantes do dia ───────────────────────────
+
+class _BirthdaysList extends StatelessWidget {
+  final List<CustomerModel> customers;
+  const _BirthdaysList({required this.customers});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Column(
+        children: customers.map((c) {
+          return ListTile(
+            leading: const Icon(Icons.cake_outlined, size: 20, color: AppColors.black),
+            title: Text(c.name, style: const TextStyle(fontSize: 14)),
+            subtitle: Text(c.formattedPhone, style: const TextStyle(fontSize: 12)),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
 // ── Gráfico de vendas diárias ─────────────────────────
 
 class _SalesChart extends StatelessWidget {
@@ -433,20 +477,19 @@ class _SalesChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Group sales by UTC date string to match backend timestamp storage
     final dataMap = <String, double>{};
     for (final sale in sales) {
-      final dt = DateTime.tryParse(sale.createdAt)?.toUtc();
+      final dt = DateTime.tryParse(sale.createdAt)?.toLocal();
       if (dt == null) continue;
-      final dateStr = dt.toIso8601String().substring(0, 10);
+      final dateStr = DateFormat('yyyy-MM-dd').format(dt);
       dataMap[dateStr] = (dataMap[dateStr] ?? 0) + sale.total;
     }
 
-    final todayUtc = DateTime.now().toUtc();
-    final days = List.generate(7, (i) => todayUtc.subtract(Duration(days: 6 - i)));
+    final today = DateTime.now();
+    final days = List.generate(7, (i) => today.subtract(Duration(days: 6 - i)));
 
     final bars = days.asMap().entries.map((e) {
-      final dateStr = e.value.toIso8601String().substring(0, 10);
+      final dateStr = DateFormat('yyyy-MM-dd').format(e.value);
       final value = dataMap[dateStr] ?? 0.0;
       final isToday = e.key == 6;
       return BarChartGroupData(

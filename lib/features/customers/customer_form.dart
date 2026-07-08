@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/http/api_client.dart';
@@ -34,8 +35,11 @@ class _CustomerFormState extends State<CustomerForm> {
   final _cpfController = TextEditingController();
   final _phoneController = TextEditingController();
   final _descriptionController = TextEditingController();
+  DateTime? _birthday;
   bool _isLoading = false;
   String? _error;
+
+  static final _dateFormat = DateFormat('dd/MM/yyyy', 'pt_BR');
 
   bool get _isEditing => widget.customer != null;
 
@@ -48,6 +52,9 @@ class _CustomerFormState extends State<CustomerForm> {
       _cpfController.text = c.formattedCpf;
       _phoneController.text = c.formattedPhone;
       _descriptionController.text = c.description;
+      if (c.birthday != null) {
+        _birthday = DateTime.tryParse(c.birthday!);
+      }
     }
   }
 
@@ -67,11 +74,15 @@ class _CustomerFormState extends State<CustomerForm> {
       _error = null;
     });
     try {
+      final cpfDigits = _cpfController.text.replaceAll(RegExp(r'\D'), '');
       final body = {
         'name': _nameController.text.trim(),
-        'cpf': _cpfController.text.replaceAll(RegExp(r'\D'), ''),
+        if (cpfDigits.isNotEmpty) 'cpf': cpfDigits,
         'phone': _phoneController.text.replaceAll(RegExp(r'\D'), ''),
         'description': _descriptionController.text.trim(),
+        'birthday': _birthday != null
+            ? DateFormat('yyyy-MM-dd').format(_birthday!)
+            : null,
       };
       final customer = _isEditing
           ? await widget.service.updateCustomer(widget.customer!.id, body)
@@ -129,10 +140,11 @@ class _CustomerFormState extends State<CustomerForm> {
                   ],
                   decoration: const InputDecoration(
                     labelText: 'CPF',
-                    hintText: '000.000.000-00',
+                    hintText: '000.000.000-00 (opcional)',
                   ),
                   validator: (v) {
                     final digits = v?.replaceAll(RegExp(r'\D'), '') ?? '';
+                    if (digits.isEmpty) return null;
                     if (digits.length != 11) return 'CPF deve ter 11 dígitos';
                     return null;
                   },
@@ -159,6 +171,37 @@ class _CustomerFormState extends State<CustomerForm> {
                     }
                     return null;
                   },
+                ),
+                const SizedBox(height: 16),
+
+                // Aniversário
+                GestureDetector(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _birthday ?? DateTime(2000),
+                      firstDate: DateTime(1900),
+                      lastDate: DateTime.now(),
+                      locale: const Locale('pt', 'BR'),
+                    );
+                    if (picked != null) setState(() => _birthday = picked);
+                  },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Data de aniversário',
+                      suffixIcon: Icon(Icons.calendar_today, size: 18),
+                    ),
+                    child: Text(
+                      _birthday != null
+                          ? _dateFormat.format(_birthday!)
+                          : 'Opcional',
+                      style: TextStyle(
+                        color: _birthday != null
+                            ? AppColors.black
+                            : AppColors.grey500,
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
 

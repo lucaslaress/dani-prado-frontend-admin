@@ -1,18 +1,54 @@
 import '../../core/http/api_client.dart';
 import 'customer_model.dart';
 
+class CustomersPage {
+  final List<CustomerModel> customers;
+  final String? nextCursor;
+  final int total;
+
+  const CustomersPage({required this.customers, this.nextCursor, required this.total});
+
+  factory CustomersPage.fromJson(Map<String, dynamic> json) {
+    return CustomersPage(
+      customers: (json['customers'] as List)
+          .map((e) => CustomerModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      nextCursor: json['nextCursor'] as String?,
+      total: json['total'] as int? ?? 0,
+    );
+  }
+}
+
 class CustomersService {
   final ApiClient _api;
 
   const CustomersService(this._api);
 
-  Future<List<CustomerModel>> listCustomers({String? search}) async {
-    final path = search != null && search.isNotEmpty
-        ? '/customers?search=${Uri.encodeComponent(search)}'
-        : '/customers';
-    final data = await _api.get(path) as List;
+  Future<CustomersPage> listCustomers({
+    int limit = 20,
+    String? cursor,
+    String? search,
+  }) async {
+    final params = <String, String>{'limit': limit.toString()};
+    if (cursor != null) params['cursor'] = cursor;
+    if (search != null && search.isNotEmpty) params['search'] = search;
+    final query =
+        '?${params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&')}';
+    final data = await _api.get('/customers$query') as Map<String, dynamic>;
+    return CustomersPage.fromJson(data);
+  }
+
+  Future<List<CustomerModel>> getBirthdaysToday() async {
+    final data = await _api.get('/customers/birthdays-today') as List;
     return data
-        .map((json) => CustomerModel.fromJson(json as Map<String, dynamic>))
+        .map((e) => CustomerModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<CustomerModel>> listAllCustomers() async {
+    final data = await _api.get('/customers?limit=1000') as Map<String, dynamic>;
+    return (data['customers'] as List)
+        .map((e) => CustomerModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 

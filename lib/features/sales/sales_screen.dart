@@ -199,6 +199,12 @@ class _CartPanelState extends State<_CartPanel> {
                   value: '- ${_currency.format(cart.discountInCents / 100)}',
                   color: AppColors.success,
                 ),
+              if (cart.appliedCreditInCents > 0)
+                _TotalRow(
+                  label: 'Crédito',
+                  value: '- ${_currency.format(cart.appliedCreditInCents / 100)}',
+                  color: AppColors.success,
+                ),
               const Divider(),
               _TotalRow(
                 label: 'Total',
@@ -334,6 +340,14 @@ class _CheckoutPanelState extends State<_CheckoutPanel> {
     super.dispose();
   }
 
+  IconData _paymentIcon(PaymentMethod method) => switch (method) {
+        PaymentMethod.cash => Icons.payments_outlined,
+        PaymentMethod.pix => Icons.pix,
+        PaymentMethod.creditCard => Icons.credit_card_outlined,
+        PaymentMethod.debitCard => Icons.credit_card,
+        PaymentMethod.other => Icons.more_horiz,
+      };
+
   void _applyDiscount() {
     final cart = context.read<PdvCartProvider>();
     final raw = _discountController.text.trim().replaceAll(',', '.');
@@ -370,7 +384,7 @@ class _CheckoutPanelState extends State<_CheckoutPanel> {
       setState(() => _submitError = 'Adicione ao menos um produto');
       return;
     }
-    if (cart.paymentMethods.isEmpty) {
+    if (cart.paymentMethods.isEmpty && cart.totalInCents > 0) {
       setState(() => _submitError = 'Adicione ao menos uma forma de pagamento');
       return;
     }
@@ -433,12 +447,37 @@ class _CheckoutPanelState extends State<_CheckoutPanel> {
           // ── Cliente ──
           _SectionTitle('Cliente'),
           const SizedBox(height: 8),
-          if (cart.selectedCustomer != null)
+          if (cart.selectedCustomer != null) ...[
             _SelectedChip(
               label: cart.selectedCustomer!.name,
               onRemove: cart.clearCustomer,
-            )
-          else
+            ),
+            if (cart.selectedCustomer!.creditInCents > 0) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withAlpha(20),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.success),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.account_balance_wallet_outlined,
+                        size: 16, color: AppColors.success),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Crédito disponível: ${_currency.format(cart.selectedCustomer!.credit)}',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.success,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ] else
             OutlinedButton.icon(
               onPressed: _pickCustomer,
               icon: const Icon(Icons.person_search),
@@ -467,8 +506,10 @@ class _CheckoutPanelState extends State<_CheckoutPanel> {
                     ButtonSegment(value: false, label: Text('R\$')),
                   ],
                   selected: {_discountIsPercent},
-                  onSelectionChanged: (v) =>
-                      setState(() => _discountIsPercent = v.first),
+                  onSelectionChanged: (v) {
+                    _discountController.clear();
+                    setState(() => _discountIsPercent = v.first);
+                  },
                   style: const ButtonStyle(
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
@@ -477,8 +518,10 @@ class _CheckoutPanelState extends State<_CheckoutPanel> {
                 Expanded(
                   child: TextField(
                     controller: _discountController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: _discountIsPercent
+                        ? []
+                        : [_CurrencyInputFormatter()],
                     decoration: InputDecoration(
                       hintText: _discountIsPercent ? '0' : '0,00',
                     ),
@@ -503,39 +546,72 @@ class _CheckoutPanelState extends State<_CheckoutPanel> {
                 ),
               ),
           const SizedBox(height: 8),
-          // Seletor de método + valor
+          // Chips de método de pagamento
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: PaymentMethod.values.map((m) {
+              final selected = m == _selectedMethod;
+              return GestureDetector(
+                onTap: () => setState(() => _selectedMethod = m),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: selected ? AppColors.black : AppColors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: selected ? AppColors.black : AppColors.grey300,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _paymentIcon(m),
+                        size: 15,
+                        color: selected ? AppColors.white : AppColors.grey700,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        m.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: selected ? AppColors.white : AppColors.black,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 10),
+          // Campo de valor + botão adicionar
           Row(
             children: [
-              DropdownButton<PaymentMethod>(
-                value: _selectedMethod,
-                items: PaymentMethod.values
-                    .map((m) => DropdownMenuItem(
-                          value: m,
-                          child: Text(m.label),
-                        ))
-                    .toList(),
-                onChanged: (m) =>
-                    setState(() => _selectedMethod = m!),
-              ),
-              const SizedBox(width: 8),
               Expanded(
                 child: TextField(
                   controller: _paymentAmountController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [_CurrencyInputFormatter()],
                   decoration: const InputDecoration(
                     hintText: '0,00',
                     prefixText: r'R$ ',
                   ),
+                  onSubmitted: (_) => _addPayment(),
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton.filled(
+              FilledButton.icon(
                 onPressed: _addPayment,
-                icon: const Icon(Icons.add),
-                style: IconButton.styleFrom(
-                    backgroundColor: AppColors.black,
-                    foregroundColor: AppColors.white),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Adicionar'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.black,
+                  minimumSize: const Size(0, 52),
+                ),
               ),
             ],
           ),
@@ -707,7 +783,7 @@ class _CustomerPickerDialogState extends State<_CustomerPickerDialog> {
 
   Future<void> _load() async {
     try {
-      final results = await widget.service.listCustomers();
+      final results = await widget.service.listAllCustomers();
       if (mounted) setState(() => _allCustomers = results);
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -780,8 +856,9 @@ class _HistoryTabState extends State<_HistoryTab> {
   bool _isLoading = false;
   String? _error;
 
-  DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
+  DateTime _startDate = DateTime.now().subtract(const Duration(days: 10));
   DateTime _endDate = DateTime.now();
+  final _customerNameController = TextEditingController();
 
   static final _dateFormat = DateFormat('dd/MM/yyyy', 'pt_BR');
   static final _dateTimeFormat = DateFormat('dd/MM/yyyy HH:mm', 'pt_BR');
@@ -794,16 +871,30 @@ class _HistoryTabState extends State<_HistoryTab> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _customerNameController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() { _isLoading = true; _error = null; });
     try {
       final end = DateTime(_endDate.year, _endDate.month, _endDate.day, 23, 59, 59);
-      final sales = await _service.listSales(startDate: _startDate, endDate: end);
+      final sales = await _service.listSales(
+        startDate: _startDate,
+        endDate: end,
+        customerName: _customerNameController.text.trim().isEmpty
+            ? null
+            : _customerNameController.text.trim(),
+      );
+      if (!mounted) return;
       setState(() => _sales = sales);
     } catch (e) {
+      if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -850,6 +941,20 @@ class _HistoryTabState extends State<_HistoryTab> {
           const Text('Ate:', style: TextStyle(color: AppColors.grey700, fontSize: 13)),
           const SizedBox(width: 8),
           _DateChip(label: _dateFormat.format(_endDate), onTap: () => _pickDate(isEnd: true)),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: 200,
+            height: 36,
+            child: TextField(
+              controller: _customerNameController,
+              decoration: const InputDecoration(
+                hintText: 'Nome do cliente',
+                prefixIcon: Icon(Icons.person_search, size: 18),
+                contentPadding: EdgeInsets.symmetric(vertical: 8),
+              ),
+              onSubmitted: (_) => _load(),
+            ),
+          ),
           const SizedBox(width: 16),
           FilledButton.icon(
             onPressed: _isLoading ? null : _load,
@@ -1060,6 +1165,30 @@ class _SaleHistoryCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _CurrencyInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
+    if (digits.isEmpty) {
+      return newValue.copyWith(
+        text: '',
+        selection: const TextSelection.collapsed(offset: 0),
+      );
+    }
+    final cents = int.parse(digits);
+    final intPart = cents ~/ 100;
+    final decPart = cents % 100;
+    final formatted = '$intPart,${decPart.toString().padLeft(2, '0')}';
+    return newValue.copyWith(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

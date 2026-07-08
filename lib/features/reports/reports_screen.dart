@@ -155,56 +155,83 @@ class _SummaryCards extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final totalSales = summary['totalSales'] as int? ?? 0;
-    final revenue = (summary['totalRevenueInCents'] as int? ?? 0) / 100;
-    final discount = (summary['totalDiscountInCents'] as int? ?? 0) / 100;
-    final netRevenue = (summary['netRevenueInCents'] as int? ?? 0) / 100;
+    final net = (summary['netRevenueInCents'] as int? ?? 0) / 100;
+    final margin = summary['profitMarginPercent'] as double?;
 
-    return Row(
+    return GridView.count(
+      crossAxisCount: 3,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 2.2,
       children: [
-        _StatCard(label: 'Total de vendas', value: '$totalSales'),
-        const SizedBox(width: 12),
-        _StatCard(label: 'Receita bruta', value: _currency.format(revenue)),
-        const SizedBox(width: 12),
-        _StatCard(label: 'Descontos', value: _currency.format(discount)),
-        const SizedBox(width: 12),
-        _StatCard(
-            label: 'Receita líquida',
-            value: _currency.format(netRevenue),
-            highlight: true),
+        _SummaryCard(
+          icon: Icons.receipt_long_outlined,
+          label: 'Vendas',
+          value: '$totalSales',
+        ),
+        _SummaryCard(
+          icon: Icons.trending_up,
+          label: 'Receita líquida',
+          value: _currency.format(net),
+          highlight: true,
+        ),
+        _SummaryCard(
+          icon: Icons.percent,
+          label: 'Margem de lucro',
+          value: margin != null ? '${margin.toStringAsFixed(1)}%' : '—',
+        ),
       ],
     );
   }
 }
 
-class _StatCard extends StatelessWidget {
+class _SummaryCard extends StatelessWidget {
+  final IconData icon;
   final String label;
   final String value;
   final bool highlight;
-  const _StatCard(
-      {required this.label, required this.value, this.highlight = false});
+
+  const _SummaryCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.highlight = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Card(
-        color: highlight ? AppColors.black : AppColors.white,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: highlight ? AppColors.grey500 : AppColors.grey700)),
-              const SizedBox(height: 8),
-              Text(value,
-                  style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: highlight ? AppColors.white : AppColors.black)),
-            ],
-          ),
+    return Card(
+      color: highlight ? AppColors.black : AppColors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(icon,
+                    size: 18,
+                    color: highlight ? AppColors.grey500 : AppColors.grey700),
+                const SizedBox(width: 8),
+                Text(label,
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: highlight ? AppColors.grey500 : AppColors.grey700)),
+              ],
+            ),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: highlight ? AppColors.white : AppColors.black,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
       ),
     );

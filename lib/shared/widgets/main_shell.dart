@@ -3,12 +3,43 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/auth/auth_provider.dart';
+import '../../core/constants.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/update/update_dialog.dart';
+import '../../core/update/update_service.dart';
 
-class MainShell extends StatelessWidget {
+class MainShell extends StatefulWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
+
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  static bool _updateChecked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_updateChecked) {
+      _updateChecked = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdates());
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    const service = UpdateService(AppConstants.updateVersionUrl);
+    final info = await service.checkForUpdate();
+    if (info != null && mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => UpdateDialog(info: info, service: service),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +48,7 @@ class MainShell extends StatelessWidget {
         children: [
           _Sidebar(),
           const VerticalDivider(width: 1),
-          Expanded(child: child),
+          Expanded(child: widget.child),
         ],
       ),
     );

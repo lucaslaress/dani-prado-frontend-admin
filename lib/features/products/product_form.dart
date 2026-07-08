@@ -7,6 +7,14 @@ import '../../core/theme/app_theme.dart';
 import 'product_model.dart';
 import 'products_service.dart';
 
+class _UpperCaseFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    return newValue.copyWith(text: newValue.text.toUpperCase());
+  }
+}
+
 class _CurrencyFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
@@ -82,7 +90,9 @@ class _ProductFormState extends State<ProductForm> {
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _categoryController = TextEditingController();
+  final _brandController = TextEditingController();
   final _basePriceController = TextEditingController();
+  final _costPriceController = TextEditingController();
   final _promoPriceController = TextEditingController();
 
   final List<_VariantDraft> _variants = [];
@@ -101,9 +111,15 @@ class _ProductFormState extends State<ProductForm> {
       _nameController.text = p.name;
       _descriptionController.text = p.description;
       _categoryController.text = p.category;
+      _brandController.text = p.brand ?? '';
       _basePriceController.text = (p.basePriceInCents / 100)
           .toStringAsFixed(2)
           .replaceAll('.', ',');
+      if (p.costPriceInCents != null) {
+        _costPriceController.text = (p.costPriceInCents! / 100)
+            .toStringAsFixed(2)
+            .replaceAll('.', ',');
+      }
       if (p.promotionalPriceInCents != null) {
         _promoPriceController.text = (p.promotionalPriceInCents! / 100)
             .toStringAsFixed(2)
@@ -122,7 +138,9 @@ class _ProductFormState extends State<ProductForm> {
     _nameController.dispose();
     _descriptionController.dispose();
     _categoryController.dispose();
+    _brandController.dispose();
     _basePriceController.dispose();
+    _costPriceController.dispose();
     _promoPriceController.dispose();
     for (final v in _variants) {
       v.dispose();
@@ -160,8 +178,11 @@ class _ProductFormState extends State<ProductForm> {
       return;
     }
 
-    // Verifica códigos de variante duplicados
-    final codes = _variants.map((v) => v.codeController.text.trim()).toList();
+    // Verifica códigos de variante duplicados (apenas variantes já existentes, com código)
+    final codes = _variants
+        .map((v) => v.codeController.text.trim())
+        .where((c) => c.isNotEmpty)
+        .toList();
     if (codes.toSet().length != codes.length) {
       setState(() => _error = 'Existem variantes com o mesmo código');
       return;
@@ -188,18 +209,28 @@ class _ProductFormState extends State<ProductForm> {
               })
           .toList();
 
+      final costText = _costPriceController.text.trim();
+      final costCents = costText.isEmpty ? null : _parseCents(costText);
+
+      final brandText = _brandController.text.trim();
       final body = <String, dynamic>{
         'name': _nameController.text.trim(),
         'description': _descriptionController.text.trim(),
         'category': _categoryController.text.trim(),
+        'brand': brandText.isEmpty ? null : brandText,
         'basePriceInCents': baseCents,
         'variants': variants,
       };
       if (!_isEditing) body['images'] = <String>[];
+      if (costCents != null) {
+        body['costPriceInCents'] = costCents;
+      } else if (_isEditing) {
+        body['costPriceInCents'] = null;
+      }
       if (promoCents != null) {
         body['promotionalPriceInCents'] = promoCents;
       } else if (_isEditing) {
-        body['promotionalPriceInCents'] = null; // limpa promoção se campo vazio
+        body['promotionalPriceInCents'] = null;
       }
 
       final product = _isEditing
@@ -295,7 +326,8 @@ class _ProductFormState extends State<ProductForm> {
         const SizedBox(height: 12),
         TextFormField(
           controller: _nameController,
-          textCapitalization: TextCapitalization.sentences,
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: [_UpperCaseFormatter()],
           decoration: const InputDecoration(labelText: 'Nome do produto'),
           validator: (v) {
             if (v == null || v.trim().length < 2) {
@@ -308,7 +340,8 @@ class _ProductFormState extends State<ProductForm> {
         TextFormField(
           controller: _descriptionController,
           maxLines: 2,
-          textCapitalization: TextCapitalization.sentences,
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: [_UpperCaseFormatter()],
           decoration: const InputDecoration(
             labelText: 'Descrição',
             alignLabelWithHint: true,
@@ -321,7 +354,8 @@ class _ProductFormState extends State<ProductForm> {
         const SizedBox(height: 16),
         TextFormField(
           controller: _categoryController,
-          textCapitalization: TextCapitalization.sentences,
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: [_UpperCaseFormatter()],
           decoration: const InputDecoration(
             labelText: 'Categoria',
             hintText: 'Ex: Vestidos, Blusas, Calças...',
@@ -330,6 +364,16 @@ class _ProductFormState extends State<ProductForm> {
             if (v == null || v.trim().isEmpty) return 'Categoria é obrigatória';
             return null;
           },
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _brandController,
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: [_UpperCaseFormatter()],
+          decoration: const InputDecoration(
+            labelText: 'Marca',
+            hintText: 'Opcional',
+          ),
         ),
       ],
     );
@@ -364,6 +408,22 @@ class _ProductFormState extends State<ProductForm> {
             const SizedBox(width: 16),
             Expanded(
               child: TextFormField(
+                controller: _costPriceController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [_CurrencyFormatter()],
+                decoration: const InputDecoration(
+                  labelText: 'Preço de custo (R\$)',
+                  hintText: 'Opcional',
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
                 controller: _promoPriceController,
                 keyboardType: TextInputType.number,
                 inputFormatters: [_CurrencyFormatter()],
@@ -373,6 +433,7 @@ class _ProductFormState extends State<ProductForm> {
                 ),
               ),
             ),
+            const Expanded(child: SizedBox()),
           ],
         ),
       ],
@@ -514,7 +575,8 @@ class _VariantRow extends StatelessWidget {
                 flex: 2,
                 child: TextFormField(
                   controller: draft.colorController,
-                  textCapitalization: TextCapitalization.sentences,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [_UpperCaseFormatter()],
                   decoration: const InputDecoration(
                     labelText: 'Cor',
                     hintText: 'Ex: Preto',
@@ -532,6 +594,7 @@ class _VariantRow extends StatelessWidget {
                 child: TextFormField(
                   controller: draft.sizeController,
                   textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [_UpperCaseFormatter()],
                   decoration: const InputDecoration(
                     labelText: 'Tamanho',
                     hintText: 'M',

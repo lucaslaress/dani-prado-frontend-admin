@@ -1,16 +1,46 @@
 import '../../core/http/api_client.dart';
 import 'product_model.dart';
 
+class ProductsPage {
+  final List<ProductModel> products;
+  final String? nextCursor;
+
+  const ProductsPage({required this.products, this.nextCursor});
+
+  factory ProductsPage.fromJson(Map<String, dynamic> json) {
+    return ProductsPage(
+      products: (json['products'] as List)
+          .map((e) => ProductModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      nextCursor: json['nextCursor'] as String?,
+    );
+  }
+}
+
 class ProductsService {
   final ApiClient _api;
 
   const ProductsService(this._api);
 
-  Future<List<ProductModel>> listProducts() async {
-    final data = await _api.get('/products') as List;
-    return data
-        .map((json) => ProductModel.fromJson(json as Map<String, dynamic>))
-        .toList();
+  Future<ProductsPage> listProducts({
+    int limit = 20,
+    String? cursor,
+    String? search,
+    String? brand,
+  }) async {
+    final params = <String, String>{'limit': limit.toString()};
+    if (cursor != null) params['cursor'] = cursor;
+    if (search != null && search.isNotEmpty) params['search'] = search;
+    if (brand != null && brand.isNotEmpty) params['brand'] = brand;
+    final query =
+        '?${params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&')}';
+    final data = await _api.get('/products$query') as Map<String, dynamic>;
+    return ProductsPage.fromJson(data);
+  }
+
+  Future<List<String>> listBrands() async {
+    final data = await _api.get('/products/brands') as List;
+    return data.cast<String>();
   }
 
   Future<ProductModel> getProduct(String id) async {

@@ -21,7 +21,14 @@ class PdvCartProvider extends ChangeNotifier {
   int get subtotalInCents =>
       _items.fold(0, (sum, item) => sum + item.totalInCents);
 
-  int get totalInCents => subtotalInCents - _discountInCents;
+  int get appliedCreditInCents {
+    if (_selectedCustomer == null || _selectedCustomer!.creditInCents <= 0) return 0;
+    final afterDiscount = subtotalInCents - _discountInCents;
+    if (afterDiscount <= 0) return 0;
+    return _selectedCustomer!.creditInCents.clamp(0, afterDiscount);
+  }
+
+  int get totalInCents => subtotalInCents - _discountInCents - appliedCreditInCents;
 
   int get totalPaidInCents =>
       _paymentMethods.fold(0, (sum, p) => sum + p.amountInCents);
