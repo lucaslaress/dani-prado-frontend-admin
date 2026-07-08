@@ -888,11 +888,13 @@ class _HistoryTabState extends State<_HistoryTab> {
             ? null
             : _customerNameController.text.trim(),
       );
+      if (!mounted) return;
       setState(() => _sales = sales);
     } catch (e) {
+      if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

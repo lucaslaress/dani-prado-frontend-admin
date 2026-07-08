@@ -2,7 +2,7 @@ name: dani_prado_frontend
 description: "Sistema de PDV da loja Dani Prado."
 publish_to: 'none'
 
-version: 1.0.0+9
+version: 1.0.0+1
 
 environment:
   sdk: ^3.11.5
@@ -39,9 +39,6 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
-  # Gera instalador .msix para Windows
-  msix: ^3.16.7
-
 flutter:
   uses-material-design: true
 
@@ -49,14 +46,3 @@ flutter:
     - assets/images/logo.png
     - assets/images/app_icon.png
 
-msix_config:
-  display_name: Dani Prado
-  publisher_display_name: Dani Prado
-  publisher: CN=DaniPrado
-  identity_name: com.daniprado.pdv
-  msix_version: 1.0.9.0
-  logo_path: assets/images/app_icon.png
-  capabilities: internetClient
-  languages: pt-BR
-  certificate_path: dani_prado.pfx
-  certificate_password: dani123

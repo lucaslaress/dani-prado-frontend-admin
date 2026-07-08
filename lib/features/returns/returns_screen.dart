@@ -161,8 +161,26 @@ class _ReturnCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text('Motivo: ${ret.reason}',
-                style: const TextStyle(color: AppColors.grey700, fontSize: 13)),
+            Row(
+              children: [
+                Text('Motivo: ${ret.reason}',
+                    style: const TextStyle(color: AppColors.grey700, fontSize: 13)),
+                const SizedBox(width: 8),
+                if (ret.isCorrection)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.grey100,
+                      border: Border.all(color: AppColors.grey300),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'Correção',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.grey700),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 8),
             ...ret.items.map((item) => Padding(
                   padding: const EdgeInsets.only(top: 4),

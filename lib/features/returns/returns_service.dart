@@ -16,11 +16,13 @@ class ReturnsService {
     required String saleId,
     required List<Map<String, dynamic>> items,
     required String reason,
+    required String type,
   }) async {
     final data = await _api.post('/returns', {
       'saleId': saleId,
       'items': items,
       'reason': reason,
+      'type': type,
     }) as Map<String, dynamic>;
     return ReturnModel.fromJson(data);
   }

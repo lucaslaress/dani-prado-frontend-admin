@@ -31,6 +31,7 @@ class ReturnModel {
   final List<ReturnItemModel> items;
   final int totalRefundedInCents;
   final String reason;
+  final String type;
   final String createdAt;
 
   const ReturnModel({
@@ -40,10 +41,12 @@ class ReturnModel {
     required this.items,
     required this.totalRefundedInCents,
     required this.reason,
+    required this.type,
     required this.createdAt,
   });
 
   double get totalRefunded => totalRefundedInCents / 100;
+  bool get isCorrection => type == 'correction';
 
   factory ReturnModel.fromJson(Map<String, dynamic> json) {
     return ReturnModel(
@@ -55,6 +58,7 @@ class ReturnModel {
           .toList(),
       totalRefundedInCents: json['totalRefundedInCents'] as int,
       reason: json['reason'] as String,
+      type: json['type'] as String? ?? 'standard',
       createdAt: json['createdAt'] as String,
     );
   }

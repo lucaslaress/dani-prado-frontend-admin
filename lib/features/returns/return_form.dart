@@ -45,6 +45,7 @@ class _ReturnFormState extends State<ReturnForm> {
 
   // variantCode → quantidade selecionada para devolver (0 = não devolver)
   final Map<String, int> _selectedQty = {};
+  String _returnType = 'standard';
 
   bool _isSubmitting = false;
   String? _submitError;
@@ -115,6 +116,7 @@ class _ReturnFormState extends State<ReturnForm> {
         saleId: _sale!.id,
         items: items,
         reason: reason,
+        type: _returnType,
       );
       if (mounted) Navigator.of(context).pop(ret);
     } catch (e) {
@@ -141,6 +143,8 @@ class _ReturnFormState extends State<ReturnForm> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _buildTypeSelector(),
+                      const SizedBox(height: 20),
                       _buildSearchSection(),
                       if (_sale != null) ...[
                         const SizedBox(height: 24),
@@ -188,6 +192,56 @@ class _ReturnFormState extends State<ReturnForm> {
           ),
         ],
       ),
+    );
+  }
+
+  void _onTypeChanged(String type) {
+    setState(() {
+      _returnType = type;
+      if (type == 'correction' && _sale != null) {
+        for (final item in _sale!.items) {
+          _selectedQty[item.variantCode] = item.quantity;
+        }
+      }
+    });
+  }
+
+  Widget _buildTypeSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Tipo de devolução',
+          style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.grey700),
+        ),
+        const SizedBox(height: 8),
+        SegmentedButton<String>(
+          segments: const [
+            ButtonSegment(
+              value: 'standard',
+              label: Text('Padrão'),
+              icon: Icon(Icons.swap_horiz),
+            ),
+            ButtonSegment(
+              value: 'correction',
+              label: Text('Correção'),
+              icon: Icon(Icons.edit_off),
+            ),
+          ],
+          selected: {_returnType},
+          onSelectionChanged: (s) => _onTypeChanged(s.first),
+          style: ButtonStyle(
+            iconSize: WidgetStateProperty.all(16),
+          ),
+        ),
+        if (_returnType == 'correction') ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Todos os itens serão selecionados. Não gera crédito para o cliente.',
+            style: TextStyle(color: AppColors.grey700, fontSize: 12),
+          ),
+        ],
+      ],
     );
   }
 
@@ -295,6 +349,7 @@ class _ReturnFormState extends State<ReturnForm> {
               onChanged: (qty) => setState(
                   () => _selectedQty[item.variantCode] = qty),
               currency: _currency,
+              locked: _returnType == 'correction',
             )),
       ],
     );
@@ -347,12 +402,14 @@ class _ItemRow extends StatelessWidget {
   final int selectedQty;
   final ValueChanged<int> onChanged;
   final NumberFormat currency;
+  final bool locked;
 
   const _ItemRow({
     required this.item,
     required this.selectedQty,
     required this.onChanged,
     required this.currency,
+    this.locked = false,
   });
 
   @override
@@ -361,13 +418,11 @@ class _ItemRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          // Checkbox para selecionar/deselecionar o item
           Checkbox(
-            value: selectedQty > 0,
-            onChanged: (v) => onChanged(v == true ? 1 : 0),
+            value: locked ? true : selectedQty > 0,
+            onChanged: locked ? null : (v) => onChanged(v == true ? 1 : 0),
           ),
           const SizedBox(width: 8),
-          // Informações do item
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -384,8 +439,17 @@ class _ItemRow extends StatelessWidget {
               ],
             ),
           ),
-          // Seletor de quantidade (só ativo se selecionado)
-          if (selectedQty > 0) ...[
+          if (locked) ...[
+            SizedBox(
+              width: 32,
+              child: Text(
+                '${item.quantity}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(width: 12),
+          ] else if (selectedQty > 0) ...[
             IconButton(
               icon: const Icon(Icons.remove, size: 18),
               onPressed: selectedQty > 1
@@ -411,7 +475,6 @@ class _ItemRow extends StatelessWidget {
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
           ] else ...[
-            // Mostra o máximo disponível quando não selecionado
             Text(
               'máx. ${item.quantity}',
               style: const TextStyle(
