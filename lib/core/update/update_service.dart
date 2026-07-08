@@ -58,7 +58,7 @@ class UpdateService {
     void Function(double progress) onProgress,
   ) async {
     final destPath =
-        '${Directory.systemTemp.path}\\dani_prado_${info.version}.msix';
+        '${Directory.systemTemp.path}\\dani_prado_${info.version}.exe';
     final file = File(destPath);
 
     final client = http.Client();
