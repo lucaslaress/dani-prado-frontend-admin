@@ -18,14 +18,22 @@ enum PaymentMethod {
 class PaymentEntry {
   final PaymentMethod method;
   final int amountInCents;
+  // Número de parcelas (apenas para cartão de crédito, 1 a 10)
+  final int? installments;
 
-  const PaymentEntry({required this.method, required this.amountInCents});
+  const PaymentEntry({
+    required this.method,
+    required this.amountInCents,
+    this.installments,
+  });
 
   double get amount => amountInCents / 100;
 
   Map<String, dynamic> toJson() => {
         'method': method.apiValue,
         'amountInCents': amountInCents,
+        if (method == PaymentMethod.creditCard && installments != null)
+          'installments': installments,
       };
 }
 
@@ -178,6 +186,7 @@ class SaleModel {
             return PaymentEntry(
               method: method,
               amountInCents: map['amountInCents'] as int,
+              installments: map['installments'] as int?,
             );
           })
           .toList(),

@@ -36,8 +36,14 @@ class SalesService {
     if (sellerId != null) params['sellerId'] = sellerId;
     if (customerId != null) params['customerId'] = customerId;
     if (customerName != null && customerName.isNotEmpty) params['customerName'] = customerName;
-    if (startDate != null) params['startDate'] = startDate.toIso8601String();
-    if (endDate != null) params['endDate'] = endDate.toIso8601String();
+    // Envia em UTC (com sufixo Z) para que o backend interprete o instante
+    // corretamente, independentemente do fuso horário do servidor.
+    if (startDate != null) {
+      params['startDate'] = startDate.toUtc().toIso8601String();
+    }
+    if (endDate != null) {
+      params['endDate'] = endDate.toUtc().toIso8601String();
+    }
 
     final query = params.isEmpty
         ? ''
