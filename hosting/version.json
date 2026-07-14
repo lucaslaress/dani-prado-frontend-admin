@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
-  "build_number": 1,
-  "download_url": "https://firebasestorage.googleapis.com/v0/b/dani-prado-47c0b.firebasestorage.app/o/DaniPrado-1.0.0-setup.exe?alt=media&token=eb6b1b5d-614c-4bb8-acae-7258e74862ef",
-  "release_notes": ""
+  "version": "1.0.1",
+  "build_number": 2,
+  "download_url": "https://firebasestorage.googleapis.com/v0/b/dani-prado-47c0b.firebasestorage.app/o/DaniPrado-1.0.1-setup.exe?alt=media&token=52daa588-3a64-4577-9611-55726ea1407a",
+  "release_notes": "Correção de bug de fuso horário, seleção de parcelas quando o pagamento for no crédito e permissão de usuários para ver preço de custo."
 }

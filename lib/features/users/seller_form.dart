@@ -35,6 +35,7 @@ const _permGroups = [
     _Perm('products:create', 'Criar produtos'),
     _Perm('products:update', 'Editar produtos'),
     _Perm('products:deactivate', 'Desativar produtos'),
+    _Perm('products:read_cost_price', 'Ver preço de custo'),
   ]),
   _PermGroup('Clientes', [
     _Perm('customers:read', 'Ver clientes'),

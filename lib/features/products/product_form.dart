@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/auth/auth_provider.dart';
 import '../../core/http/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import 'product_model.dart';
@@ -101,6 +102,12 @@ class _ProductFormState extends State<ProductForm> {
   String? _error;
 
   bool get _isEditing => widget.product != null;
+
+  bool get _canViewCostPrice {
+    final user = context.read<AuthProvider>().user;
+    return user?.isAdmin == true ||
+        user?.hasPermission('products:read_cost_price') == true;
+  }
 
   @override
   void initState() {
@@ -209,9 +216,6 @@ class _ProductFormState extends State<ProductForm> {
               })
           .toList();
 
-      final costText = _costPriceController.text.trim();
-      final costCents = costText.isEmpty ? null : _parseCents(costText);
-
       final brandText = _brandController.text.trim();
       final body = <String, dynamic>{
         'name': _nameController.text.trim(),
@@ -222,10 +226,16 @@ class _ProductFormState extends State<ProductForm> {
         'variants': variants,
       };
       if (!_isEditing) body['images'] = <String>[];
-      if (costCents != null) {
-        body['costPriceInCents'] = costCents;
-      } else if (_isEditing) {
-        body['costPriceInCents'] = null;
+      // Sem permissão de ver o custo, o campo fica oculto e não deve ser
+      // enviado — evita apagar o valor existente ao salvar o formulário.
+      if (_canViewCostPrice) {
+        final costText = _costPriceController.text.trim();
+        final costCents = costText.isEmpty ? null : _parseCents(costText);
+        if (costCents != null) {
+          body['costPriceInCents'] = costCents;
+        } else if (_isEditing) {
+          body['costPriceInCents'] = null;
+        }
       }
       if (promoCents != null) {
         body['promotionalPriceInCents'] = promoCents;
@@ -406,17 +416,20 @@ class _ProductFormState extends State<ProductForm> {
               ),
             ),
             const SizedBox(width: 16),
-            Expanded(
-              child: TextFormField(
-                controller: _costPriceController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [_CurrencyFormatter()],
-                decoration: const InputDecoration(
-                  labelText: 'Preço de custo (R\$)',
-                  hintText: 'Opcional',
+            if (_canViewCostPrice)
+              Expanded(
+                child: TextFormField(
+                  controller: _costPriceController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [_CurrencyFormatter()],
+                  decoration: const InputDecoration(
+                    labelText: 'Preço de custo (R\$)',
+                    hintText: 'Opcional',
+                  ),
                 ),
-              ),
-            ),
+              )
+            else
+              const Expanded(child: SizedBox()),
           ],
         ),
         const SizedBox(height: 16),

@@ -329,6 +329,7 @@ class _CheckoutPanelState extends State<_CheckoutPanel> {
   final _discountController = TextEditingController();
   final _paymentAmountController = TextEditingController();
   PaymentMethod _selectedMethod = PaymentMethod.pix;
+  int _installments = 1;
   bool _discountIsPercent = true;
   bool _isSubmitting = false;
   String? _submitError;
@@ -374,8 +375,11 @@ class _CheckoutPanelState extends State<_CheckoutPanel> {
     cart.addPaymentMethod(PaymentEntry(
       method: _selectedMethod,
       amountInCents: (amount * 100).round(),
+      installments:
+          _selectedMethod == PaymentMethod.creditCard ? _installments : null,
     ));
     _paymentAmountController.clear();
+    setState(() => _installments = 1);
   }
 
   Future<void> _finalizeSale() async {
@@ -553,7 +557,10 @@ class _CheckoutPanelState extends State<_CheckoutPanel> {
             children: PaymentMethod.values.map((m) {
               final selected = m == _selectedMethod;
               return GestureDetector(
-                onTap: () => setState(() => _selectedMethod = m),
+                onTap: () => setState(() {
+                  _selectedMethod = m;
+                  if (m != PaymentMethod.creditCard) _installments = 1;
+                }),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 120),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -587,6 +594,56 @@ class _CheckoutPanelState extends State<_CheckoutPanel> {
               );
             }).toList(),
           ),
+          if (_selectedMethod == PaymentMethod.creditCard) ...[
+            const SizedBox(height: 10),
+            Container(
+              height: 52,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: AppColors.grey100,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.grey300),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: _installments,
+                  isExpanded: true,
+                  icon: const Icon(Icons.keyboard_arrow_down,
+                      color: AppColors.grey700, size: 20),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.black,
+                  ),
+                  items: List.generate(10, (i) => i + 1)
+                      .map((n) => DropdownMenuItem(
+                            value: n,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.credit_card_outlined,
+                                    size: 16, color: AppColors.grey700),
+                                const SizedBox(width: 8),
+                                Text(n == 1
+                                    ? 'À vista, sem parcelamento'
+                                    : 'Em ${n}x'),
+                              ],
+                            ),
+                          ))
+                      .toList(),
+                  selectedItemBuilder: (context) => List.generate(10, (i) => i + 1)
+                      .map((n) => Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(n == 1 ? 'À vista, sem parcelamento' : 'Em ${n}x'),
+                          ))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _installments = v);
+                  },
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           // Campo de valor + botão adicionar
           Row(
@@ -732,10 +789,14 @@ class _PaymentChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final installments = entry.installments;
+    final installmentsSuffix =
+        (installments != null && installments > 1) ? ' em ${installments}x' : '';
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: _SelectedChip(
-        label: '${entry.method.label} — ${_currency.format(entry.amount)}',
+        label:
+            '${entry.method.label} — ${_currency.format(entry.amount)}$installmentsSuffix',
         onRemove: onRemove,
       ),
     );
@@ -880,9 +941,11 @@ class _HistoryTabState extends State<_HistoryTab> {
   Future<void> _load() async {
     setState(() { _isLoading = true; _error = null; });
     try {
-      final end = DateTime(_endDate.year, _endDate.month, _endDate.day, 23, 59, 59);
+      final start = DateTime(_startDate.year, _startDate.month, _startDate.day);
+      final end = DateTime(
+          _endDate.year, _endDate.month, _endDate.day, 23, 59, 59, 999);
       final sales = await _service.listSales(
-        startDate: _startDate,
+        startDate: start,
         endDate: end,
         customerName: _customerNameController.text.trim().isEmpty
             ? null
@@ -1054,7 +1117,12 @@ class _SaleHistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final date = DateTime.tryParse(sale.createdAt)?.toLocal();
     final paymentSummary = sale.paymentMethods
-        .map((p) => '${p.method.label} ${currency.format(p.amount)}')
+        .map((p) {
+          final installments = p.installments;
+          final suffix =
+              (installments != null && installments > 1) ? ' em ${installments}x' : '';
+          return '${p.method.label} ${currency.format(p.amount)}$suffix';
+        })
         .join(' + ');
 
     return Card(
